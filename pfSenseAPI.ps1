@@ -208,14 +208,12 @@ class pfsession : IDisposable {
 } #pfsession class end
 
 
-
 #
 # PoC de uso
 #
 
 try {
     $s = [pfsession]::New('https://10.0.2.10', (Get-Credential) )
-
 
     $interf    = $s.GetInterfaces()
     $fwAliases = $s.GetFwAliases()
