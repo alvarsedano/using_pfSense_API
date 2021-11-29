@@ -239,8 +239,6 @@ try {
     $users     = $s.GetFunction('GetUsers')
     $svc       = $s.GetFunction('GetServices')
     $hostname  = $s.GetFunction('GetHostname')
-
-
 }
 finally {
     $s.Dispose()
