@@ -216,7 +216,7 @@ class pfsession : IDisposable {
 try {
     $s = [pfsession]::New('https://10.0.2.10', (Get-Credential) )
 
-<#
+
     $interf    = $s.GetInterfaces()
     $fwAliases = $s.GetFwAliases()
     $fwNatOut  = $s.GetFwNatOutbound()
@@ -227,18 +227,7 @@ try {
     $users     = $s.GetUsers()
     $svc       = $s.GetServices()
     $hostname  = $s.GetHostname()
-#>
 
-    $interf    = $s.GetFunction('GetInterfaces')
-    $fwAliases = $s.GetFunction('GetFwAliases')
-    $fwNatOut  = $s.GetFunction('GetFwNatOutbound')
-    $fwNatPFwd = $s.GetFunction('GetFwNatPFwd')
-    $fwRules   = $s.GetFunction('GetFwRules')
-    $fwVirtIP  = $s.GetFunction('GetFwVirtualIPs')
-    $gw        = $s.GetFunction('GetGateways')
-    $users     = $s.GetFunction('GetUsers')
-    $svc       = $s.GetFunction('GetServices')
-    $hostname  = $s.GetFunction('GetHostname')
 }
 finally {
     $s.Dispose()
