@@ -243,8 +243,8 @@ try {
 
 }
 finally {
-    #$s.Dispose()
-    #Remove-Variable s -ErrorAction SilentlyContinue
+    $s.Dispose()
+    Remove-Variable s -ErrorAction SilentlyContinue
 }
 
     "$hostname"
