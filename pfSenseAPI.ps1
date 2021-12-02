@@ -22,12 +22,12 @@ add-type @"
         public bool CheckValidationResult(
             ServicePoint srvPoint, X509Certificate certificate,
             WebRequest request, int certificateProblem) {
-            return true;
+                return true;
         }
     }
 "@
-[System.Net.ServicePointManager]::CertificatePolicy = [TrustAllCertsPolicy]::new()
-New-Alias -name 'irm2' -Value 'irmDesktop' -Scope Local -Force -ErrorAction SilentlyContinue
+    [System.Net.ServicePointManager]::CertificatePolicy = [TrustAllCertsPolicy]::new()
+    New-Alias -name 'irm2' -Value 'irmDesktop' -Scope Local -Force -ErrorAction SilentlyContinue
 }
 else {
     #TODO Skip certificate check     
@@ -38,6 +38,8 @@ else {
 #
 class pfsession : IDisposable {
     [string]$baseURI
+    [bool]$SkipCertificateCheck
+    [bool]$isReadOnly
     [string]$lastToken
     hidden [string]$contentType = 'application/json'
     hidden [HashTable]$headers = @{Accept        = 'application/json';
@@ -59,10 +61,12 @@ class pfsession : IDisposable {
                                         GetUsers         = 'user' }
     #TODO: manage token expiration
 
-    # constrúúúctor
+    # constrúúúctor helper
     #
-    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials) {
+    hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
         $this.cred = $credentials
+        $this.SkipCertificateCheck = $SkipCertCheck
+        $this.isReadOnly = $isReadOnly
         $this.baseURI = $pfSenseBaseURI
         if ($pfSenseBaseURI -match '\/$') {
             $this.baseURI += 'api/v1/'
@@ -72,6 +76,18 @@ class pfsession : IDisposable {
         }
         $this.GetToken()
     }
+
+
+    # constrúúúctor
+    #
+    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
+        $this.Init($pfSenseBaseURI,$credentials, $SkipCertCheck,$isReadOnly)
+    }
+
+    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials) {
+        $this.Init($pfSenseBaseURI,$credentials, $true, $true)
+    }
+
 
     # destrúúúctor
     #
@@ -102,7 +118,6 @@ class pfsession : IDisposable {
         $pas = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($this.cred.Password))
         [string]$body = "{`"client-id`":`"$($usr)`",`"client-token`":`"$($pas)`"}"
 
-        #$respuesta = Invoke-RestMethod -Method Post -Uri $this.uri($relUri) -Headers $cab -Body $body -ContentType $this.contentType
         $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $cab -Body $body -ct $this.contentType
         if ($respuesta.code -eq 200) {
             # Token ok
@@ -118,10 +133,9 @@ class pfsession : IDisposable {
     # Get Functions
     # Returns a PSObject/PSObject array
     #
-    [PSObject] GetFunction([string]$function) {
+    hidden [PSObject] GetFunction([string]$function) {
         $f = $this.funcionesGet.$function
         if ($f) {
-            #$respuesta = Invoke-RestMethod -Method Get -Uri $this.uri($f) -Headers $this.headers -ContentType $this.contentType
             $respuesta = irm2 -method Get -uri $this.uri($f) -head $this.headers -ct $this.contentType
             if ($respuesta.code -eq 200) {
                 return $respuesta.data
@@ -198,12 +212,64 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetHostName')
     }
 
-    # Get Users
-    # Returns a PSObject array
+    # newVLan
+    # Returns string with the new vlan interface name
     #
     [PSObject] GetUsers() {
         return $this.GetFunction('GetUsers')
     }
+
+    [string] newVLan([string]$parentIf, [uint16]$vlanId, [string]$descr) {
+        $bodyJ = @{if=$parentIf;
+                  vlanId=$vlanId;
+                  descr=$descr}
+<#        
+        [string]$body = "{`"if`":`"$($parentIf)`"," + `
+                          "`"tag`":`"$($vlanId)`"," + `
+                          "`"descr`":`"$($descr)`"}"
+#>
+        [string]$relUri = 'interface/vlan'
+        $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
+        if ($respuesta.code -eq 200) {
+            return $respuesta.data.vlanif
+        }
+        else {
+            return $null
+        }
+        $respuesta
+    }
+
+    # assignIf
+    # Returns a PSObject ¿???
+    #
+    [PSObject] assignIf([string]$ifName, [string]$descr, [bool]$enable, [string]$ipaddr, [byte]$subnetPref, [bool]$apply) {
+        $bodyJ = @{if=$ifName;
+                   descr=$descr;
+                   enable=$enable;
+                   type='stativ4';
+                   ipaddr=$ipaddr;
+                   subnet=$subnetPref;
+                   apply=$apply}
+<#
+        [string]$body = "{`"if`":`"$($ifName)`"," + `
+                          "`"descr`":`"$($descr)`"," + `
+                          "`"enable`":$(($enable.ToString()).ToLower())," + `
+                          "`"type`":`"staticv4`"," + `
+                          "`"ipaddr`":`"$($ipaddr)`"," + `
+                          "`"subnet`":`"$($subnetPref)`"," + `
+                          "`"apply`":$(($apply.ToString()).ToLower())}"
+#>
+        [string]$relUri = 'interface'
+        $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
+        if ($respuesta.code -eq 200) {
+            return $respuesta.data
+        }
+        else {
+            return $null
+        }
+        $respuesta
+    }
+
 
 } #pfsession class end
 
@@ -226,10 +292,12 @@ try {
     $svc       = $s.GetServices()
     $hostname  = $s.GetHostname()
 
+    $nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
+    $s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
 }
 finally {
-    $s.Dispose()
-    Remove-Variable s -ErrorAction SilentlyContinue
+    #$s.Dispose()
+    #Remove-Variable s -ErrorAction SilentlyContinue
 }
 
     "$hostname"
@@ -249,3 +317,5 @@ finally {
     $svc        | Out-GridView
 
 #>
+
+    
