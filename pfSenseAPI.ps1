@@ -4,7 +4,6 @@
 #TLS 1.2 para Invoke-RestMethod
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-
 Function irmDesktop($method, $uri, $head, $body, $ct) {
     Invoke-RestMethod -Method $method -Uri $uri -Headers $head -Body $body -ContentType $ct
 }
@@ -45,21 +44,24 @@ class pfsession : IDisposable {
     hidden [HashTable]$headers = @{Accept        = 'application/json';
                                    Authorization = ''   }
     hidden [PSCredential]$cred
-    hidden [hashTable]$funcionesGet = @{GetInterfaces    = 'interface';
-                                        GetFwAliases     = 'firewall/alias';
-                                        GetFwRules       = 'firewall/rule';
-                                        GetFwVirtualIPs  = 'firewall/virtual_ip';
-                                        GetFwNatOutbound = 'firewall/nat/outbound';
-                                        GetNatPFwd       = 'firewall/nat/port_forward';
-                                        GetGateways      = 'routing/gateway/';
-                                        GetServices      = 'services';
-                                        GetHostName      = 'system/hostname';
-                                        GetCAs           = 'system/ca';
-                                        GetCerts         = 'system/certificate';
-                                        GetConfig        = 'system/config';
-                                        GetArp           = 'system/arp';
-                                        GetVersion       = 'system/version'
-                                        GetUsers         = 'user' }
+    hidden [hashTable]$funcionesGet = @{GetInterfaces       = 'interface';
+                                        GetInterfaceBridges = 'interface/bridge'
+                                        GetFwAliases        = 'firewall/alias';
+                                        GetFwRules          = 'firewall/rule';
+                                        GetFwVirtualIPs     = 'firewall/virtual_ip';
+                                        GetFwNatOutbound    = 'firewall/nat/outbound';
+                                        GetFwNatOutboundMap = 'firewall/nat/outbound/mapping';
+                                        GetFwNat1to1        = 'firewall/nat/one_to_one';
+                                        GetNatPFwd          = 'firewall/nat/port_forward';
+                                        GetGateways         = 'routing/gateway/';
+                                        GetServices         = 'services';
+                                        GetHostName         = 'system/hostname';
+                                        GetCAs              = 'system/ca';
+                                        GetCerts            = 'system/certificate';
+                                        GetConfig           = 'system/config';
+                                        GetArp              = 'system/arp';
+                                        GetVersion          = 'system/version'
+                                        GetUsers            = 'user' }
                                         
     #TODO: manage token expiration
 
@@ -158,6 +160,13 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetInterfaces')
     }
 
+    # Get pfSense Interface Bridges
+    # Returns a PSObject array
+    #
+    [PSObject] GetInterfaceBridges() {
+        return $this.GetFunction('GetInterfaceBridges')
+    }
+
     # Get Firewall Aliases
     # Returns a PSObject array
     #
@@ -179,11 +188,18 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetFwVirtualIPs')
     }
 
-    # Get Firewall NAT Outbound
+    # Get Firewall NAT Outbound Setting Mode
     # Returns a PSObject array
     #
     [PSObject] GetFwNatOutbound() {
         return $this.GetFunction('GetFwNatOutbound')
+    }
+
+    # Get Firewall NAT Outbound Mappings (Rules)
+    # Returns a PSObject array
+    #
+    [PSObject] GetFwNatOutboundMap() {
+        return $this.GetFunction('GetFwNatOutboundMap')
     }
 
     # Get Firewall NAT Port Forwarding
@@ -191,6 +207,13 @@ class pfsession : IDisposable {
     #
     [PSObject] GetFwNatPFwd() {
         return $this.GetFunction('GetFwNatPFwd')
+    }
+
+    # Get Firewall NAT 1 to 1 mappings
+    # Returns a PSObject array
+    #
+    [PSObject] GetFwNat1to1() {
+        return $this.GetFunction('GetFwNat1to1')
     }
 
     # Get Gateways (routing)
@@ -282,8 +305,10 @@ try {
     $s = [pfsession]::New('https://10.0.2.10', (Get-Credential) )
 
     $interf    = $s.GetInterfaces()
+    $interfBrg = $s.GetInterfaceBridges()
     $fwAliases = $s.GetFwAliases()
     $fwNatOut  = $s.GetFwNatOutbound()
+    $fwNatOutM = $s.GetFwNatOutboundMap()
     $fwNatPFwd = $s.GetFwNatPFwd()
     $fwRules   = $s.GetFwRules()
     $fwVirtIP  = $s.GetFwVirtualIPs()
@@ -318,5 +343,4 @@ finally {
     $svc        | Out-GridView
 
 #>
-
     
