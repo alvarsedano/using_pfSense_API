@@ -58,7 +58,9 @@ class pfsession : IDisposable {
                                         GetCerts         = 'system/certificate';
                                         GetConfig        = 'system/config';
                                         GetArp           = 'system/arp';
+                                        GetVersion       = 'system/version'
                                         GetUsers         = 'user' }
+                                        
     #TODO: manage token expiration
 
     # constrúúúctor helper
@@ -212,16 +214,26 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetHostName')
     }
 
-    # newVLan
-    # Returns string with the new vlan interface name
+    # Get Users
+    # Returns a PSObject array
     #
     [PSObject] GetUsers() {
         return $this.GetFunction('GetUsers')
     }
 
+    # Get Version
+    # Returns a PSObject
+    #
+    [PSObject] GetVersion() {
+        return $this.GetFunction('GetVersion')
+    }
+
+    # Creates new vLan interface
+    # Returns string with name of the new vlanIf
+    #
     [string] newVLan([string]$parentIf, [uint16]$vlanId, [string]$descr) {
-        $bodyJ = @{if=$parentIf;
-                   tag=$vlanId;
+        $bodyJ = @{if   =$parentIf;
+                   tag  =$vlanId;
                    descr=$descr}
 
         [string]$relUri = 'interface/vlan'
@@ -239,13 +251,13 @@ class pfsession : IDisposable {
     # Returns a PSObject ¿???
     #
     [PSObject] assignIf([string]$ifName, [string]$descr, [bool]$enable, [string]$ipaddr, [byte]$subnetPref, [bool]$apply) {
-        $bodyJ = @{if=$ifName;
-                   descr=$descr;
+        $bodyJ = @{if    =$ifName;
+                   descr =$descr;
                    enable=$enable;
-                   type='staticv4';
+                   type  ='staticv4';
                    ipaddr=$ipaddr;
                    subnet=$subnetPref;
-                   apply=$apply}
+                   apply =$apply}
 
         [string]$relUri = 'interface'
         $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
@@ -279,6 +291,7 @@ try {
     $users     = $s.GetUsers()
     $svc       = $s.GetServices()
     $hostname  = $s.GetHostname()
+    $version   = $s.GetVersion()
 
     $nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
     $s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
