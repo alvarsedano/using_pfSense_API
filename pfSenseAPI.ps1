@@ -221,13 +221,9 @@ class pfsession : IDisposable {
 
     [string] newVLan([string]$parentIf, [uint16]$vlanId, [string]$descr) {
         $bodyJ = @{if=$parentIf;
-                  vlanId=$vlanId;
-                  descr=$descr}
-<#        
-        [string]$body = "{`"if`":`"$($parentIf)`"," + `
-                          "`"tag`":`"$($vlanId)`"," + `
-                          "`"descr`":`"$($descr)`"}"
-#>
+                   tag=$vlanId;
+                   descr=$descr}
+
         [string]$relUri = 'interface/vlan'
         $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
         if ($respuesta.code -eq 200) {
@@ -246,19 +242,11 @@ class pfsession : IDisposable {
         $bodyJ = @{if=$ifName;
                    descr=$descr;
                    enable=$enable;
-                   type='stativ4';
+                   type='staticv4';
                    ipaddr=$ipaddr;
                    subnet=$subnetPref;
                    apply=$apply}
-<#
-        [string]$body = "{`"if`":`"$($ifName)`"," + `
-                          "`"descr`":`"$($descr)`"," + `
-                          "`"enable`":$(($enable.ToString()).ToLower())," + `
-                          "`"type`":`"staticv4`"," + `
-                          "`"ipaddr`":`"$($ipaddr)`"," + `
-                          "`"subnet`":`"$($subnetPref)`"," + `
-                          "`"apply`":$(($apply.ToString()).ToLower())}"
-#>
+
         [string]$relUri = 'interface'
         $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
         if ($respuesta.code -eq 200) {
