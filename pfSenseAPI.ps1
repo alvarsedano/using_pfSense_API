@@ -1,4 +1,4 @@
-﻿# Consumiendo pfSense rest-api
+# Consumiendo pfSense rest-api
 # https://github.com/jaredhendrickson13/pfsense-api
 
 #TLS 1.2 para Invoke-RestMethod
@@ -13,7 +13,7 @@ Function irmCore($method, $uri, $head, $body, $ct) {
 }
 
 #Aceptar certificados autofirmados/expirados/inválidos
-if ($PSEdition -ne 'Core') {
+if ($Global:PSEdition -ne 'Core') {
 add-type @"
     using System.Net;
     using System.Security.Cryptography.X509Certificates;
@@ -39,29 +39,31 @@ class pfsession : IDisposable {
     [string]$baseURI
     [bool]$SkipCertificateCheck
     [bool]$isReadOnly
+    [bool]$PSEditionCore
     [string]$lastToken
     hidden [string]$contentType = 'application/json'
     hidden [HashTable]$headers = @{Accept        = 'application/json';
                                    Authorization = ''   }
     hidden [PSCredential]$cred
-    hidden [hashTable]$funcionesGet = @{GetInterfaces       = 'interface';
+    hidden [hashTable]$funcionesGet = @{GetInterfaces       = 'interface'
                                         GetInterfaceBridges = 'interface/bridge'
-                                        GetFwAliases        = 'firewall/alias';
-                                        GetFwRules          = 'firewall/rule';
-                                        GetFwVirtualIPs     = 'firewall/virtual_ip';
-                                        GetFwNatOutbound    = 'firewall/nat/outbound';
-                                        GetFwNatOutboundMap = 'firewall/nat/outbound/mapping';
-                                        GetFwNat1to1        = 'firewall/nat/one_to_one';
-                                        GetNatPFwd          = 'firewall/nat/port_forward';
-                                        GetGateways         = 'routing/gateway/';
-                                        GetServices         = 'services';
-                                        GetHostName         = 'system/hostname';
-                                        GetCAs              = 'system/ca';
-                                        GetCerts            = 'system/certificate';
-                                        GetConfig           = 'system/config';
-                                        GetArp              = 'system/arp';
+                                        GetFwAliases        = 'firewall/alias'
+                                        GetFwRules          = 'firewall/rule'
+                                        GetFwVirtualIPs     = 'firewall/virtual_ip'
+                                        GetFwNatOutbound    = 'firewall/nat/outbound'
+                                        GetFwNatOutboundMap = 'firewall/nat/outbound/mapping'
+                                        GetFwNat1to1        = 'firewall/nat/one_to_one'
+                                        GetNatPFwd          = 'firewall/nat/port_forward'
+                                        GetGateways         = 'routing/gateway/'
+                                        GetServices         = 'services'
+                                        GetHostName         = 'system/hostname'
+                                        GetCAs              = 'system/ca'
+                                        GetCerts            = 'system/certificate'
+                                        GetDns              = 'system/dns'
+                                        GetConfig           = 'system/config'
+                                        GetArp              = 'system/arp'
                                         GetVersion          = 'system/version'
-                                        GetUsers            = 'user' }
+                                        GetUsers            = 'user'}
                                         
     #TODO: manage token expiration
 
@@ -72,6 +74,7 @@ class pfsession : IDisposable {
         $this.SkipCertificateCheck = $SkipCertCheck
         $this.isReadOnly = $isReadOnly
         $this.baseURI = $pfSenseBaseURI
+        $this.PSEditionCore = $Global:PSEdition -eq 'Core'
         if ($pfSenseBaseURI -match '\/$') {
             $this.baseURI += 'api/v1/'
         }
@@ -223,6 +226,75 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetGateways')
     }
 
+    # Get CAs
+    # Returns a PSObject
+    #
+    [PSObject] GetCAs() {
+        return $this.GetFunction('GetCAs')
+    }
+
+    #pem 2 x509 without private key
+    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([string]$crt) {
+        return [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($crt))
+    }
+
+    #pem 2 x509 with private key (if running under core)
+    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([string]$crt, [string]$prv) {
+        if ($this.PSEditionCore) {
+            [char[]]$crtS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($crt)).ToCharArray()
+            [char[]]$keyS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($prv)).ToCharArray()
+            return [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($crtS, $keyS)
+        }
+        else {
+            return $this.pem2x509($crt)
+        }
+    }
+
+    # Get CAsX509 with or without Private Keys
+    # Input params: $private: $true To return private Keys
+    # Returns a X509Certificate2 array (with privateKeys if $private is $true and it's called from PWSH 7+ Core)
+    #
+    # NOTE: Mandatory PWSHCore to return Private Keys.
+    #
+    [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCAsX509([bool]$private) {
+        [PSObject]$obj = $this.GetFunction('GetCAs')
+
+        [Security.Cryptography.X509Certificates.X509Certificate2[]]$r = @()
+        [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
+        foreach($c in $obj.ca) {
+            if ($private) {
+                $ccc = $this.pem2x509($c.crt, $c.prv)
+            }
+            else {
+                $ccc = $this.pem2x509($c.crt)
+            }
+            $ccc.FriendlyName = $c.descr
+            $r += $ccc
+        }
+        return $r
+    }
+
+    # Get Certs
+    # Returns a PSObject array
+    #
+    [PSObject] GetCerts() {
+        return $this.GetFunction('GetCerts')
+    }
+
+    # Get Config
+    # Returns a PSObject array
+    #
+    [PSObject] GetConfig() {
+        return $this.GetFunction('GetConfig')
+    }
+
+    # Get Dns
+    # Returns a PSObject array
+    #
+    [PSObject] GetDns() {
+        return $this.GetFunction('GetDns')
+    }
+
     # Get Services
     # Returns a PSObject array
     #
@@ -317,6 +389,10 @@ try {
     $svc       = $s.GetServices()
     $hostname  = $s.GetHostname()
     $version   = $s.GetVersion()
+    $cfg       = $s.GetConfig()
+    $CAs       = $s.GetCAs()
+    $Certs     = $s.GetCerts()
+    $Dns       = $s.GetDns()
 
     $nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
     $s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
