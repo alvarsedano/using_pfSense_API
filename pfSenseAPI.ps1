@@ -234,19 +234,19 @@ class pfsession : IDisposable {
     }
 
     #pem 2 x509 without private key
-    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([string]$crt) {
-        return [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($crt))
+    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([ref]$crt) {
+        return [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($crt.Value))
     }
 
     #pem 2 x509 with private key (if running under core)
-    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([string]$crt, [string]$prv) {
+    hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([ref]$crt, [ref]$prv) {
         if ($this.PSEditionCore) {
-            [char[]]$crtS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($crt)).ToCharArray()
-            [char[]]$keyS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($prv)).ToCharArray()
+            [char[]]$crtS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($crt.Value)).ToCharArray()
+            [char[]]$keyS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($prv.Value)).ToCharArray()
             return [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($crtS, $keyS)
         }
         else {
-            return $this.pem2x509($crt)
+            return $this.pem2x509($crt.Value)
         }
     }
 
@@ -254,7 +254,7 @@ class pfsession : IDisposable {
     hidden [Security.Cryptography.X509Certificates.X509Certificate2[]] certArray2X509Array([ref]$array, [bool]$private) {
         [Security.Cryptography.X509Certificates.X509Certificate2[]]$r = @()
         [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
-        foreach($c in $array.value) {
+        foreach($c in $array.Value) {
             if ($private -and $this.PSEditionCore) {
                 $ccc = $this.pem2x509($c.crt, $c.prv)
             }
