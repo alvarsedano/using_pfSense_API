@@ -250,19 +250,12 @@ class pfsession : IDisposable {
         }
     }
 
-    # Get CAsX509 with or without Private Keys
-    # Input params: $private: $true To return private Keys
-    # Returns a X509Certificate2 array (with privateKeys if $private is $true and it's called from PWSH 7+ Core)
-    #
-    # NOTE: Mandatory PWSHCore to return Private Keys.
-    #
-    [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCAsX509([bool]$private) {
-        [PSObject]$obj = $this.GetFunction('GetCAs')
-
+    #certArray 2 X509 Array
+    hidden [Security.Cryptography.X509Certificates.X509Certificate2[]] certArray2X509Array([ref]$array, [bool]$private) {
         [Security.Cryptography.X509Certificates.X509Certificate2[]]$r = @()
         [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
-        foreach($c in $obj.ca) {
-            if ($private) {
+        foreach($c in $array.value) {
+            if ($private -and $this.PSEditionCore) {
                 $ccc = $this.pem2x509($c.crt, $c.prv)
             }
             else {
@@ -274,11 +267,33 @@ class pfsession : IDisposable {
         return $r
     }
 
+    # Get X509 CA certificates
+    # Input params: $private: $true to return private Keys
+    # Returns a X509Certificate2 array (with privateKeys if $private is $true and it's called from PWSH 7+ Core)
+    #
+    # NOTE: Mandatory PWSHCore to return Private Keys.
+    #
+    [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCAsX509([bool]$private) {
+        [PSObject]$obj = $this.GetFunction('GetCAs')
+        return $this.certArray2X509Array([ref]($obj.ca), $private)
+    }
+
     # Get Certs
     # Returns a PSObject array
     #
     [PSObject] GetCerts() {
         return $this.GetFunction('GetCerts')
+    }
+
+    # Get X509 Certificates
+    # Input params: $private: $true to return private Keys
+    # Returns a X509Certificate2 array (with privateKeys if $private is $true and it's called from PWSH 7+ Core)
+    #
+    # NOTE: Mandatory PWSHCore to return Private Keys.
+    #
+    [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCertsX509([bool]$private) {
+        [PSObject]$obj = $this.GetFunction('GetCerts')
+        return $this.certArray2X509Array([ref]($obj.cert), $private)
     }
 
     # Get Config
@@ -393,13 +408,14 @@ try {
     $CAs       = $s.GetCAs()
     $Certs     = $s.GetCerts()
     $Dns       = $s.GetDns()
+    $x509C     = $s.GetCertsX509($true)
 
-    $nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
-    $s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
+    #$nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
+    #$s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
 }
 finally {
-    #$s.Dispose()
-    #Remove-Variable s -ErrorAction SilentlyContinue
+    $s.Dispose()
+    Remove-Variable s -ErrorAction SilentlyContinue
 }
 
     "$hostname"
@@ -419,4 +435,6 @@ finally {
     $svc        | Out-GridView
 
 #>
-    
+
+    "`nX509 Certificates Array"
+    $x509C | Format-Table
