@@ -253,7 +253,8 @@ class pfsession : IDisposable {
             return [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($crtS, $keyS)
         }
         else {
-            return $this.pem2x509($crt.Value)
+            #return $this.pem2x509($crt.Value)
+            return $this.pem2x509($crt)
         }
     }
 
@@ -263,10 +264,10 @@ class pfsession : IDisposable {
         [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
         foreach($c in $array.Value) {
             if ($private -and $this.PSEditionCore) {
-                $ccc = $this.pem2x509($c.crt, $c.prv)
+                $ccc = $this.pem2x509([ref]($c.crt), [ref]($c.prv))
             }
             else {
-                $ccc = $this.pem2x509($c.crt)
+                $ccc = $this.pem2x509([ref]($c.crt))
             }
             $ccc.FriendlyName = $c.descr
             $result += $ccc
@@ -451,7 +452,7 @@ try {
     $CAs       = $s.GetCAs()
     $Certs     = $s.GetCerts()
     $Dns       = $s.GetDns()
-    $x509C     = $s.GetCertsX509($true)
+    $x509C     = $s.GetCertsX509($false) # <-- false = without private key
 
     $nuevaVLAN = $s.newVLan('em0', 146, 'vlan146')
     $s.assignIf($nuevaVLAN, 'vlan146', $true, '10.137.10.1', 24, $true)
