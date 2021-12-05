@@ -37,7 +37,7 @@ else {
 #
 class pfsession : IDisposable {
     [string]$baseURI
-    [bool]$SkipCertificateCheck
+    #[bool]$SkipCertificateCheck
     [bool]$isReadOnly
     [bool]$PSEditionCore
     [string]$lastToken
@@ -69,9 +69,11 @@ class pfsession : IDisposable {
 
     # constrúúúctor helper
     #
-    hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
+    #TODO: manage skip/force pfSense certificate check on API calls (Invoke-RestMethod)
+    #hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
+    hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$isReadOnly) {
         $this.cred = $credentials
-        $this.SkipCertificateCheck = $SkipCertCheck
+        #$this.SkipCertificateCheck = $SkipCertCheck
         $this.isReadOnly = $isReadOnly
         $this.baseURI = $pfSenseBaseURI
         $this.PSEditionCore = $Global:PSEdition -eq 'Core'
@@ -86,13 +88,18 @@ class pfsession : IDisposable {
 
 
     # constrúúúctor
+    # No changes allowed on pfSense when $isReadOnly is true
     #
-    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
-        $this.Init($pfSenseBaseURI,$credentials, $SkipCertCheck,$isReadOnly)
+    #pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
+    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$isReadOnly) {
+        $this.Init($pfSenseBaseURI,$credentials, $isReadOnly)
     }
 
+    # No changes allowed on pfSense when $isReadOnly is true
+    # $isReadOnly = true is the default behavior
+    #
     pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials) {
-        $this.Init($pfSenseBaseURI,$credentials, $true, $true)
+        $this.Init($pfSenseBaseURI,$credentials, $true)
     }
 
 
@@ -252,7 +259,7 @@ class pfsession : IDisposable {
 
     #certArray 2 X509 Array
     hidden [Security.Cryptography.X509Certificates.X509Certificate2[]] certArray2X509Array([ref]$array, [bool]$private) {
-        [Security.Cryptography.X509Certificates.X509Certificate2[]]$r = @()
+        [Security.Cryptography.X509Certificates.X509Certificate2[]]$result = @()
         [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
         foreach($c in $array.Value) {
             if ($private -and $this.PSEditionCore) {
@@ -262,9 +269,9 @@ class pfsession : IDisposable {
                 $ccc = $this.pem2x509($c.crt)
             }
             $ccc.FriendlyName = $c.descr
-            $r += $ccc
+            $result += $ccc
         }
-        return $r
+        return $result
     }
 
     # Get X509 CA certificates
@@ -289,7 +296,7 @@ class pfsession : IDisposable {
     # Input params: $private: $true to return private Keys
     # Returns a X509Certificate2 array (with privateKeys if $private is $true and it's called from PWSH 7+ Core)
     #
-    # NOTE: Mandatory PWSHCore to return Private Keys.
+    # NOTE: It's mandatory to use PWSHCore to return Private Keys.
     #
     [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCertsX509([bool]$private) {
         [PSObject]$obj = $this.GetFunction('GetCerts')
@@ -338,10 +345,20 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetVersion')
     }
 
+    hidden [void] throwNoPermission() {
+        if ($this.isReadOnly) {
+            Throw "Operation rejected: you do not have write permission."
+            return # never executed
+        }
+      
+    }
+
     # Creates new vLan interface
     # Returns string with name of the new vlanIf
     #
     [string] newVLan([string]$parentIf, [uint16]$vlanId, [string]$descr) {
+        $this.throwNoPermission()
+
         $bodyJ = @{if   =$parentIf;
                    tag  =$vlanId;
                    descr=$descr}
@@ -354,20 +371,21 @@ class pfsession : IDisposable {
         else {
             return $null
         }
-        $respuesta
     }
 
     # assignIf
     # Returns a PSObject ¿???
     #
     [PSObject] assignIf([string]$ifName, [string]$descr, [bool]$enable, [string]$ipaddr, [byte]$subnetPref, [bool]$apply) {
-        $bodyJ = @{if    =$ifName;
-                   descr =$descr;
-                   enable=$enable;
-                   type  ='staticv4';
-                   ipaddr=$ipaddr;
-                   subnet=$subnetPref;
-                   apply =$apply}
+        $this.throwNoPermission()
+
+        $bodyJ = @{if     = $ifName
+                   descr  = $descr
+                   enable = $enable
+                   type   = 'staticv4'
+                   ipaddr = $ipaddr
+                   subnet = $subnetPref
+                   apply  = $apply}
 
         [string]$relUri = 'interface'
         $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $this.headers -Body $($bodyJ|ConvertTo-Json -Depth 1 -Compress) -ct $this.contentType
@@ -377,9 +395,33 @@ class pfsession : IDisposable {
         else {
             return $null
         }
-        $respuesta
     }
+<#
+    [PSObject] newFwRule() {
+        $this.throwNoPermission()
 
+        $bodyJ = @{
+            if           = $ifName
+            ipprotocol   = 'inet|inet6|inet46'
+            protocol     = $protocol
+            icmptype     = $icmptype
+            src          = $src
+            dst          = $dst
+            srcport      = $srcport
+            dstport      = $dstport
+            gateway      = $gateway
+            sched        = $sched
+            dnpipe       = $dnspipe
+            pdnpipe      = $pdnpipe
+            defaultqueue = $defaultqueue
+            ackqueue     = $ackqueue
+            disabled     = $disabled
+            descr        = $descr
+            apply        = $apply}
+
+        return $null
+    }
+#>
 
 } #pfsession class end
 
@@ -389,7 +431,8 @@ class pfsession : IDisposable {
 #
 
 try {
-    $s = [pfsession]::New('https://10.0.2.10', (Get-Credential) )
+    #$s = [pfsession]::New('https://10.0.2.10', (Get-Credential)) # <-- readonly mode
+    $s = [pfsession]::New('https://10.0.2.10', (Get-Credential), $false) # <-- with write permissions
 
     $interf    = $s.GetInterfaces()
     $interfBrg = $s.GetInterfaceBridges()
@@ -410,8 +453,8 @@ try {
     $Dns       = $s.GetDns()
     $x509C     = $s.GetCertsX509($true)
 
-    #$nuevaVLAN = $s.newVLan('em0', 145, 'vlan145')
-    #$s.assignIf($nuevaVLAN, 'vlan145', $true, '10.137.10.1', 24, $true)
+    $nuevaVLAN = $s.newVLan('em0', 146, 'vlan146')
+    $s.assignIf($nuevaVLAN, 'vlan146', $true, '10.137.10.1', 24, $true)
 }
 finally {
     $s.Dispose()
