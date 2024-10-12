@@ -311,11 +311,15 @@ class pfsession : IDisposable {
     hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([ref]$crt, [ref]$prv) {
         if ($this.PSEditionCore) {
             [char[]]$crtS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($crt.Value)).ToCharArray()
-            [char[]]$keyS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($prv.Value)).ToCharArray()
-            return [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($crtS, $keyS)
+            if ($null -ne $prv.Value) {
+                [char[]]$keyS = [Text.Encoding]::ASCII.Getstring([Convert]::FromBase64String($prv.Value)).ToCharArray()
+                return [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($crtS, $keyS)
+            }
+            else {
+                return $this.pem2x509($crt)
+            }
         }
         else {
-            #return $this.pem2x509($crt.Value)
             return $this.pem2x509($crt)
         }
     }
@@ -325,11 +329,17 @@ class pfsession : IDisposable {
         [Security.Cryptography.X509Certificates.X509Certificate2[]]$result = @()
         [Security.Cryptography.X509Certificates.X509Certificate2]$ccc = $null
         foreach($c in $array.Value) {
-            if ($private -and $this.PSEditionCore) {
-                $ccc = $this.pem2x509([ref]($c.crt), [ref]($c.prv))
+            if ($private -and $this.PSEditionCore -and $null -ne $c.crt) {
+                ##$c.creation
+                try {
+                    $ccc=[Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($c.crt, $c.prv)
+                } catch {
+                    $ccc = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($c.crt)
+                }
             }
             else {
-                $ccc = $this.pem2x509([ref]($c.crt))
+                $ccc = $this.pem2x509($c.crt)
+                #$ccc = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($c.crt)
             }
             $ccc.FriendlyName = $c.descr
             $result += $ccc
@@ -363,7 +373,7 @@ class pfsession : IDisposable {
     #
     [System.Security.Cryptography.X509Certificates.X509Certificate2[]] GetCertsX509([bool]$private) {
         [PSObject]$obj = $this.GetFunction('GetCerts')
-        return $this.certArray2X509Array([ref]($obj.cert), $private)
+        return $this.certArray2X509Array([ref]($obj), $private)
     }
 
     # Get Config
@@ -567,6 +577,7 @@ try {
     #$s = [pfsession]::New('https://10.0.2.10', (Get-Credential)) # <-- readonly mode
     $s = [pfsession]::New('https://10.0.2.10', (Get-Credential), $false) # <-- with write permissions
 
+<#
     $interf    = $s.GetInterfaces()
     $interfBrg = $s.GetInterfaceBridges()
     $fwAliases = $s.GetFwAliases()
@@ -586,7 +597,7 @@ try {
     $Dns       = $s.GetDns()
     $x509CA    = $s.GetCAsX509($false)  # <-- false = without private key
     $x509Cert  = $s.GetCertsX509($true) # <-- true = with private key
-
+#>
 
     # Test: vlan creation
     #$nuevaVLAN = $s.newVLan('em0', 146, 'vlan146')
@@ -598,6 +609,7 @@ finally {
     #Remove-Variable s -ErrorAction SilentlyContinue
 }
 
+<#
     "$hostname"
 
     "`nINTERFACES"
@@ -605,6 +617,8 @@ finally {
 
     "`nGATEWAYS"
     $gw
+#>
+
 <#
     $fwAliases  | Out-GridView
     $fwRules    | Out-GridView
@@ -616,6 +630,7 @@ finally {
 
 #>
 
+<#
 # Exporting CA Certificates
 foreach($c in $x509Cert) {
     If (-not $c.HasPrivateKey) {
@@ -633,5 +648,8 @@ foreach($c in $x509Cert) {
 }
 
 
+
     "`nX509 Certificates Array"
     $x509Cert | Format-Table
+
+#>
