@@ -1,39 +1,16 @@
-﻿# Consumiendo pfSense rest-api
-# https://github.com/jaredhendrickson13/pfsense-api
+﻿# Consumiendo unofficial pfSense rest-api v2
+# https://pfrest.org/api-docs/
 
 #TLS 1.2 para Invoke-RestMethod
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 Function irmDesktop($method, $uri, $head, $body, $ct) {
     Invoke-RestMethod -Method $method -Uri $uri -Headers $head -Body $body -ContentType $ct
-<#    
-    if ($null -ne $body) {
-        Invoke-RestMethod -Method $method -Uri $uri -Headers $head -Body $body -ContentType $ct
-    }
-    else {
-        Invoke-RestMethod -Method $method -Uri $uri -Headers $head -ContentType $ct
-    }
-#>
 }
 
 Function irmCore($method, $uri, $head, $body, $ct) {
     Invoke-RestMethod -Method $method -Uri $uri -Headers $head -Body $body -ContentType $ct -SkipCertificateCheck:$true
-<#
-    if ($null -ne $body) {
-        Invoke-RestMethod -Method $method -Uri $uri -Headers $head -Body $body -ContentType $ct -SkipCertificateCheck:$true
-    }
-    else {
-        Invoke-RestMethod -Method $method -Uri $uri -Headers $head -ContentType $ct -SkipCertificateCheck:$true
-    }
-#>
 }
-
-
-<#
-Function irmCore2($method, $uri, $head, $ct) {
-    Invoke-RestMethod -Method $method -Uri $uri -Headers $head -ContentType $ct -SkipCertificateCheck:$true
-}
-#>
 
 #Aceptar certificados autofirmados/expirados/inválidos
 if ($Global:PSEdition -ne 'Core') {
@@ -65,33 +42,41 @@ class pfsession : IDisposable {
     [bool]$PSEditionCore
     [string]$lastToken
     hidden [string]$contentType = 'application/json'
-    hidden [HashTable]$headers = @{Accept        = 'application/json';
-                                   Authorization = ''   }
+    hidden [HashTable]$headers = @{Authorization = ''}
     hidden [PSCredential]$cred
-    hidden [hashTable]$funcionesGet = @{GetInterfaces        = 'interfaces' #interface
-                                        GetInterfaceBridges  = 'interface/bridges' #interface/bridge
-                                        GetInterfaceVlans    = 'interface/vlans' # aniadido
-                                        GetFwAliases         = 'firewall/aliases' #firewall/alias
-                                        GetFwRules           = 'firewall/rules' #firewall/rule
-                                        GetFwVirtualIPs      = 'firewall/virtual_ips' #firewall/virtual_ip
-                                        GetFwNatOutbound     = 'firewall/nat/outbound/mode' #firewall/nat/outbound
-                                        GetFwNatOutboundMaps = 'firewall/nat/outbound/mappings' #firewall/nat/outbound/mapping
-                                        GetFwNat1to1         = 'firewall/nat/one_to_one'
-                                        GetFwNatPFwds        = 'firewall/nat/port_forwards' #firewall/nat/port_forward
-                                        GetGateways          = 'routing/gateways'
-                                        GetDefaultGateway    = 'routing/gateway/default'
-                                        GetStaticRoutes      = 'routing/static_routes' #aniadido
-                                        GetServices          = 'status/services' # ahora está en status
-                                        GetHostName          = 'system/hostname'
-                                        GetCAs               = 'system/certificate_authorities' #system/ca
-                                        GetCRLs              = 'system/crls' # aniadido
-                                        GetCerts             = 'system/certificates' # system/certificate
-                                        GetDns               = 'system/dns'
-                                        GetConfig            = 'system/config' # no funciona
-                                        GetArp               = 'system/arp' # no funciona
-                                        GetVersion           = 'system/version' #ok
-                                        GetUsers             = 'users' #user
-                                        GetGroups            = 'user/groups'} #aniadido
+    hidden [hashTable]$funcionesGet = @{GetInterfaces           = 'interfaces' #interface
+                                        GetInterfaceBridges     = 'interface/bridges' #interface/bridge
+                                        GetInterfaceVlans       = 'interface/vlans' # aniadido
+                                        GetFwAliases            = 'firewall/aliases' #firewall/alias
+                                        GetFwRules              = 'firewall/rules' #firewall/rule
+                                        GetFwVirtualIPs         = 'firewall/virtual_ips' #firewall/virtual_ip
+                                        GetFwNatOutbound        = 'firewall/nat/outbound/mode' #firewall/nat/outbound
+                                        GetFwNatOutboundMaps    = 'firewall/nat/outbound/mappings' #firewall/nat/outbound/mapping
+                                        GetFwNat1to1            = 'firewall/nat/one_to_one'
+                                        GetFwNatPFwds           = 'firewall/nat/port_forwards' #firewall/nat/port_forward
+                                        GetGateways             = 'routing/gateways'
+                                        GetDefaultGateway       = 'routing/gateway/default'
+                                        GetStaticRoutes         = 'routing/static_routes' #aniadido
+                                        GetVPNOvpnServers       = 'vpn/openvpn/servers' # aniadido
+                                        GetVPNWireGuardSettings = 'vpn/wireguard/settings' # aniadido
+                                        GetVPNWireGuardPeers    = 'vpn/wireguard/peers' # aniadido
+                                        GetVPNWireGuardTunnels  = 'vpn/wireguard/tunnels' # aniadido
+                                        GetServices             = 'status/services' # ahora está en status
+                                        GetSTCarp               = 'status/carp' #aniadido
+                                        GetSTGateways           = 'status/gateways' #aniadido
+                                        GetSTInterfaces         = 'status/interfaces' #aniadido
+                                        GetSTSystem             = 'status/system' #aniadido
+                                        GetSTOvpnServers        = 'status/openvpn/servers' #aniadido
+                                        GetHostName             = 'system/hostname'
+                                        GetCAs                  = 'system/certificate_authorities' #system/ca
+                                        GetCRLs                 = 'system/crls' # aniadido
+                                        GetCerts                = 'system/certificates' # system/certificate
+                                        GetDns                  = 'system/dns'
+                                        GetConfig               = 'system/config' # no funciona
+                                        GetArp                  = 'system/arp' # no funciona
+                                        GetVersion              = 'system/version' #ok
+                                        GetUsers                = 'users' #user
+                                        GetGroups               = 'user/groups'} #aniadido
                                         
     #TODO: manage token expiration
 
@@ -165,25 +150,6 @@ class pfsession : IDisposable {
     # Saved in lastToken
     #
     [void] GetToken() {
-<#        
-        [string]$relUri = 'access_token'
-        [hashTable]$cab = @{Accept = 'application/json'}
-
-        $usr = $this.cred.UserName
-        $pas = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($this.cred.Password))
-        [string]$body = "{`"client-id`":`"$($usr)`",`"client-token`":`"$($pas)`"}"
-
-        $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $cab -Body $body -ct $this.contentType
-        if ($respuesta.code -eq 200) {
-            # Token ok
-            $this.lastToken = $respuesta.data.token
-            $this.headers.Authorization = "Bearer $($this.lastToken)"
-        }
-        else {
-            $this.lastToken = ''
-            $this.headers.Authorization = ''
-        }
-#>
         [string]$relUri  = 'auth/jwt'
         <#
         [string]$cadAuth = '{0}:{1}' -f $this.cred.UserName , [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($this.cred.Password))
@@ -414,13 +380,76 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetDns')
     }
 
-    # Get Services
+    # Get OpenVpn Servers (vpn/openvpn/servers)
+    # Returns a PSObject array
+    #
+    [PSObject] GetVPNOvpnServers() {
+        return $this.GetFunction('GetVPNOvpnServers')
+    }
+
+    # Get WireGuard Settings (vpn/wireguard/settings)
+    # Returns a PSObject array
+    #
+    [PSObject] GetVPNWireGuardSettings() {
+        return $this.GetFunction('GetVPNWireGuardSettings')
+    }
+
+    # Get WireGuard Peers (vpn/wireguard/peers)
+    # Returns a PSObject array
+    #
+    [PSObject] GetVPNWireGuardPeers() {
+        return $this.GetFunction('GetVPNWireGuardPeers')
+    }
+
+    # Get WireGuard Tunnels (vpn/openvpn/tunnels)
+    # Returns a PSObject array
+    #
+    [PSObject] GetVPNWireGuardTunnels() {
+        return $this.GetFunction('GetVPNWireGuardTunnels')
+    }
+
+    # Get Services Status (status/services)
     # Returns a PSObject array
     #
     [PSObject] GetServices() {
         return $this.GetFunction('GetServices')
     }
 
+    # Get CARP Status (status/carp)
+    # Returns a PSObject array
+    #
+    [PSObject] GetSTCarp() {
+        return $this.GetFunction('GetSTCarp')
+    }
+
+    # Get Gateways Status (status/gateways)
+    # Returns a PSObject array
+    #
+    [PSObject] GetSTGateways() {
+        return $this.GetFunction('GetSTGateways')
+    }
+
+    # Get Interfaces Status (status/interfaces)
+    # Returns a PSObject array
+    #
+    [PSObject] GetSTInterfaces() {
+        return $this.GetFunction('GetSTInterfaces')
+    }
+
+    # Get System Status (status/system)
+    # Returns a PSObject array
+    #
+    [PSObject] GetSTSystem() {
+        return $this.GetFunction('GetSTSystem')
+    }
+
+    # Get OpenVPN Servers Status (status/openvpn/servers)
+    # Returns a PSObject array
+    #
+    [PSObject] GetSTOvpnServers() {
+        return $this.GetFunction('GetSTOvpnServers')
+    }
+    
     # Get HostName
     # Returns a PSObject array
     #
@@ -559,8 +588,9 @@ try {
     $x509Cert  = $s.GetCertsX509($true) # <-- true = with private key
 
 
-    $nuevaVLAN = $s.newVLan('em0', 146, 'vlan146')
-    $s.assignIf($nuevaVLAN, 'vlan146', $true, '10.137.10.1', 24, $true)
+    # Test: vlan creation
+    #$nuevaVLAN = $s.newVLan('em0', 146, 'vlan146')
+    #$s.assignIf($nuevaVLAN, 'vlan146', $true, '10.137.10.1', 24, $true)
 }
 finally {
     # TODO: descomentar al terminar la depuración
