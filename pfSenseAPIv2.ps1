@@ -72,8 +72,8 @@ class pfsession : IDisposable {
                                         GetCRLs                 = 'system/crls' # aniadido
                                         GetCerts                = 'system/certificates' # system/certificate
                                         GetDns                  = 'system/dns'
-                                        GetConfig               = 'system/config' # no funciona
-                                        GetArp                  = 'system/arp' # no funciona
+                                        #GetConfig               = 'system/config' # no funciona --> Use better .GetSTSystem()
+                                        GetArp                  = 'diagnostics/arp_table' # #diagnostics/arp
                                         GetVersion              = 'system/version' #ok
                                         GetUsers                = 'users' #user
                                         GetGroups               = 'user/groups'} #aniadido
@@ -385,11 +385,20 @@ class pfsession : IDisposable {
         return $this.certArray2X509Array([ref]($obj), $private)
     }
 
+    <#
     # Get Config
     # Returns a PSObject array
     #
     [PSObject] GetConfig() {
         return $this.GetFunction('GetConfig')
+    }
+    #>
+
+    # Get Arp tabñe (diagnostics/arp_table)
+    # Returns a PSObject array
+    #
+    [PSObject] GetArp() {
+        return $this.GetFunction('GetArp')
     }
 
     # Get Dns
