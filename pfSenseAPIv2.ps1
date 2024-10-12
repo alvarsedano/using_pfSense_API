@@ -302,9 +302,18 @@ class pfsession : IDisposable {
         return $this.GetFunction('GetCAs')
     }
 
+
     #pem 2 x509 without private key
     hidden [Security.Cryptography.X509Certificates.X509Certificate2] pem2x509([ref]$crt) {
-        return [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($crt.Value))
+        try {
+            # Remove ^----*$ lines from X509 encoding cert
+            $temp = [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String([string]((($crt.Value) -split "`n" ) -notmatch '^----') ))
+        }
+        catch {
+            # Possible invalid cert content
+            $temp = [Security.Cryptography.X509Certificates.X509Certificate2]::new()
+        }
+        return $temp
     }
 
     #pem 2 x509 with private key (if running under core)
@@ -576,7 +585,8 @@ class pfsession : IDisposable {
 try {
     #$s = [pfsession]::New('https://10.0.2.10', (Get-Credential)) # <-- readonly mode
     $s = [pfsession]::New('https://10.0.2.10', (Get-Credential), $false) # <-- with write permissions
-
+    
+    
 <#
     $interf    = $s.GetInterfaces()
     $interfBrg = $s.GetInterfaceBridges()
@@ -653,3 +663,6 @@ foreach($c in $x509Cert) {
     $x509Cert | Format-Table
 
 #>
+
+# $s contains the instance to interact with the API
+#
