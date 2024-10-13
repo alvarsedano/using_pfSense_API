@@ -29,19 +29,29 @@ add-type @"
     New-Alias -name 'irm2' -Value 'irmDesktop' -Scope Local -Force -ErrorAction SilentlyContinue
 }
 else {
-    #TODO Skip certificate check     
+    #TODO Skip certificate check
     New-Alias -name 'irm2' -Value 'irmCore' -Scope Local -Force -ErrorAction SilentlyContinue
 }
 
 # LA CHICHA
 #
+
+# Authentication Types
+# Jwt is the default
+enum pfsessionAuthType {
+    authJwt   = 1
+    authKey   = 2
+    authLogin = 3 }
+
 class pfsession : IDisposable {
     [string]$baseURI
     #[bool]$SkipCertificateCheck
     [bool]$isReadOnly
     [bool]$PSEditionCore
     [string]$lastToken
+    [pfsessionAuthType]$authType = [pfsessionAuthType]::authJwt # default auth type is JWT
     hidden [string]$contentType = 'application/json'
+    hidden [string]$apikey
     hidden [HashTable]$headers = @{Authorization = ''}
     hidden [PSCredential]$cred
     hidden [hashTable]$funcionesGet = @{GetInterfaces           = 'interfaces' #interface
@@ -78,17 +88,24 @@ class pfsession : IDisposable {
                                         GetUsers                = 'users' #user
                                         GetGroups               = 'user/groups'} #aniadido
                                         
+
+    <#
+    # Init $this properties
+    hidden [void] InitiazeProperties() {
+    }
+    #>
+
     #TODO: manage token expiration
 
     # constrúúúctor helper
     #
     #TODO: manage skip/force pfSense certificate check on API calls (Invoke-RestMethod)
     #hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
-    hidden Init([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$isReadOnly) {
-        $this.cred = $credentials
-        #$this.SkipCertificateCheck = $SkipCertCheck
-        $this.isReadOnly = $isReadOnly
+    hidden Init([string]$pfSenseBaseURI, [PSCredential]$credentials, [bool]$isReadOnly) {
         $this.baseURI = $pfSenseBaseURI
+        $this.isReadOnly = $isReadOnly
+        $this.cred = $credentials
+        $this.authType = [pfsessionAuthType]::authJwt # Default value
         $this.PSEditionCore = $Global:PSEdition -eq 'Core'
         if ($pfSenseBaseURI -match '\/$') {
             $this.baseURI += 'api/v2/'
@@ -99,6 +116,63 @@ class pfsession : IDisposable {
         $this.GetToken()
     }
 
+    #overloaded Init helper (adding auth Type)
+    #
+    hidden Init([string]$pfSenseBaseURI, [PSCredential]$credentials, [string]$apikey, [bool]$isReadOnly, [pfsessionAuthType]$authType) {
+        ##
+        $this.baseURI = $pfSenseBaseURI
+        $this.isReadOnly = $isReadOnly
+        $this.cred = $credentials
+        $this.PSEditionCore = $Global:PSEdition -eq 'Core'
+        if ($pfSenseBaseURI -match '\/$') {
+            $this.baseURI += 'api/v2/'
+        }
+        else {
+            $this.baseURI += '/api/v2/'
+        }
+
+        if ($null -ne $authType -and $authType -is [pfsessionAuthType]) {
+            $this.authType = $authType
+
+            switch ( [int]$authType ) {
+                ## Login authentication. The header "Authentication" will always contain BASE64ENC("Basic user:pass") as its value
+                ([int]([pfsessionAuthType]::authLogin)) {
+                    # Prepare authentication header
+                    # TODO ASG 126
+                    $this.headers = @{ Authorization = $this.usrpwdB64() }
+                }
+
+                ## Key authentication. The header "X-API-Key" will always contain the key as its value
+                ([int]([pfsessionAuthType]::authKey)) {
+                    # Prepare X-API-Key header
+                    # TODO
+                    $this.apikey = $apikey
+                    $this.headers = @{ 'X-API-Key' =  $this.apikey }
+                }
+
+                
+                ## JWT Token authentication. After getting an Authorization Token, the header "Authorization" will always contain "Bearer tokenvalue" as its value
+                #[pfsessionAuthType]::authJwt {
+                default {
+                    #$this.authType = [pfsessionAuthType]::authJwt
+                    $this.Init($pfSenseBaseURI, $credentials, $isReadOnly)
+                }
+
+            }
+
+            <#
+            if ($authType -eq [pfsessionAuthType]::authLogin) {
+                ## Login authentication. The body always will contain the header "Authentication:" with value BASE64ENC("Basic user:pass")
+            }
+            #>
+            
+        }
+        else {
+            #$this.authType = [pfsessionAuthType]::authJwt
+            $this.Init($pfSenseBaseURI, $credentials, $isReadOnly)
+        }
+
+    }
 
     # Constructs Basic Authorization string to get JWT token
     # Return string 'Basic BASE64ENCODE("user:password")'
@@ -115,17 +189,22 @@ class pfsession : IDisposable {
     # No changes allowed on pfSense when $isReadOnly is true
     #
     #pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$SkipCertCheck,[bool]$isReadOnly) {
-    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials, [bool]$isReadOnly) {
+    pfsession([string]$pfSenseBaseURI, [PSCredential]$credentials, [bool]$isReadOnly) {
         $this.Init($pfSenseBaseURI,$credentials, $isReadOnly)
     }
 
     # No changes allowed on pfSense when $isReadOnly is true
     # $isReadOnly = true is the default behavior
     #
-    pfsession([string]$pfSenseBaseURI,[PSCredential]$credentials) {
-        $this.Init($pfSenseBaseURI,$credentials, $true)
+    pfsession([string]$pfSenseBaseURI, [PSCredential]$credentials) {
+        $this.Init($pfSenseBaseURI, $credentials, $true)
     }
 
+    #
+    #
+    pfsession([string]$pfSenseBaseURI, [PSCredential]$credentials, [string]$apikey, [bool]$isReadOnly, [pfsessionAuthType]$authType) {
+        $this.Init($pfSenseBaseURI, $credentials, $apikey, $isReadOnly, $authType)
+    }
 
     # destrúúúctor
     #
@@ -156,24 +235,33 @@ class pfsession : IDisposable {
         [hashTable]$cab  = @{Accept        = $this.contentType
                              Authorization = 'Basic {0}' -f ([Convert]::ToBase64String([char[]]$cadAuth))}
         #>
-        [hashTable]$cab  = @{Accept        = $this.contentType
+        <#
+        [hashTable]$cab  = @{Accept        = $this.contentType   # Redundant header "Accept" when contntType is set? TODO: check
                              Authorization = $this.usrpwdB64() }
+        #>
+        [hashTable]$cab = @{ Authorization = $this.usrpwdB64() }
+        [bool]$callerror = $false
+        $respuesta = $null
+        try {
+            $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $cab -ct $this.contentType
+        }
+        catch {
+            $callerror = $true
+        }
 
-        #$respuesta = irmCore2 -method Post -uri $this.uri($relUri) -head $cab -ct $this.contentType
-        $respuesta = irm2 -method Post -uri $this.uri($relUri) -head $cab -ct $this.contentType
-        if ($respuesta.code -eq 200) {
+        if (-not $callerror -and $respuesta.code -eq 200) {
             # Token ok
             $this.lastToken = $respuesta.data.token
-            $this.headers.Authorization = 'Bearer {0}' -f $this.lastToken
+            #$this.headers.Authorization = 'Bearer {0}' -f $this.lastToken
+            $this.headers = @{ Authorization = ('Bearer {0}' -f $this.lastToken) }
         }
         else {
             $this.lastToken = ''
-            $this.headers.Authorization = ''
+            #$this.headers.Authorization = ''
+            $this.headers = @{}
             Write-Host -BackgroundColor Red "error: $($respuesta.message)"
         }
-
     }
-
 
     # Get Functions
     # Returns a PSObject/PSObject array
@@ -593,8 +681,10 @@ class pfsession : IDisposable {
 
 try {
     #$s = [pfsession]::New('https://10.0.2.10', (Get-Credential)) # <-- readonly mode
-    $s = [pfsession]::New('https://10.0.2.10', (Get-Credential), $false) # <-- with write permissions
-    
+    #$s = [pfsession]::New('https://10.0.2.10', (Get-Credential), $false) # <-- with write permissions
+    $v = [pfsession]::New('https://pfSenseIP', $null, 'tokenstring8f39d19b0c17', $false, [pfsessionAuthType]::authKey) # <-- with write permissions
+
+    $v
     
 <#
     $interf    = $s.GetInterfaces()
