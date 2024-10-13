@@ -9,7 +9,7 @@ Not finished:
 # AUTH EXAMPLES
 
 ## Authentication using API_Key
-- $credentials can be $null or whatveer (compatible type)
+- $credentials can be $null or whatever (compatible type)
 - $authtype must be [pfsessionAuthType]::authKey
 - $s = [pfsession]::New('https://pfsenseIP', $null, 'tokenstring8f39d19b0c17', $false, [pfsessionAuthType]::authKey)
 
